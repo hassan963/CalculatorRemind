@@ -1,16 +1,34 @@
 package com.example.ashrafulhassan.calculatorremind;
 
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.support.v7.widget.Toolbar;
+import android.support.v7.widget.DividerItemDecoration;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.example.ashrafulhassan.calculatorremind.adapter.HistoryAdapter;
 import com.example.ashrafulhassan.calculatorremind.db.DataBaseHelper;
+import com.example.ashrafulhassan.calculatorremind.model.History;
+import com.example.ashrafulhassan.calculatorremind.utils.SpacesItemDecoration;
 import com.fathzer.soft.javaluator.DoubleEvaluator;
+import com.sothree.slidinguppanel.SlidingUpPanelLayout;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -21,7 +39,21 @@ public class MainActivity extends AppCompatActivity {
     private String expression="";
     private String text="";
     private Double result=0.0;
-    private DataBaseHelper dbHelper;
+
+    private ImageView addRemarks;
+
+    private DataBaseHelper dataBaseHelper;
+
+    private View hiddenPanel;
+
+    private SlidingUpPanelLayout mLayout;
+
+    private String timeStamp = "";
+
+    ArrayList<History> histories;
+    RecyclerView historyRecyclerview;
+    HistoryAdapter historyAdapter;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,9 +62,67 @@ public class MainActivity extends AppCompatActivity {
 
         e1 = findViewById(R.id.editText1);
         e2 = findViewById(R.id.editText2);
-        dbHelper = new DataBaseHelper(getApplicationContext());
+
+        hiddenPanel = findViewById(R.id.hidden_panel);
+
+        dataBaseHelper = new DataBaseHelper(getApplicationContext());
+
+        addRemarks = findViewById(R.id.addRemarks);
 
         e2.setText("0");
+
+        histories = dataBaseHelper.getHistory();
+
+
+        historyRecyclerview = findViewById(R.id.historyRecyclerview);
+        historyRecyclerview.setHasFixedSize(true);
+        RecyclerView.LayoutManager mLayoutManager = new LinearLayoutManager(getApplicationContext());
+        historyRecyclerview.setLayoutManager(mLayoutManager);
+        historyAdapter = new HistoryAdapter(histories, getApplicationContext());
+        historyRecyclerview.setAdapter(historyAdapter);
+
+        historyRecyclerview.addItemDecoration(new SpacesItemDecoration(10));
+
+        addRemarks.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //show dialog for first ADD item
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                LayoutInflater inflater = (LayoutInflater) MainActivity.this.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+                final View dialogView = inflater.inflate(R.layout.custom_dialog_edit, null);
+                builder.setView(dialogView);
+
+                final EditText editRemarks = dialogView.findViewById(R.id.editRemarks);
+
+                builder.setTitle("My remarks");
+                builder.setPositiveButton("Add", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        String remarks = editRemarks.getText().toString();
+
+                        if (!expression.equals("0.0")){
+                            dataBaseHelper.updateRemarks(remarks,timeStamp);
+                            histories.clear();
+                            histories = dataBaseHelper.getHistory();
+                            historyAdapter.updateReceiptsList(histories);
+                        }
+
+
+
+                    }
+                });
+                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        Toast.makeText(getApplicationContext(), "Canceled", Toast.LENGTH_SHORT).show();
+                    }
+                });
+                AlertDialog alertDialog = builder.create();
+                alertDialog.show();
+            }
+        });
+
+
     }
 
     public void onClick(View v)
@@ -216,8 +306,17 @@ public class MainActivity extends AppCompatActivity {
 
                     //Double resul = new DoubleEvaluator().evaluate(expression);
 
-                    if(!expression.equals("0.0"))
-                       // dbHelper.insert("STANDARD",expression+" = "+result);
+                    if(!expression.equals("0.0")){
+                        timeStamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
+                        dataBaseHelper.addHistory(expression, ""+result, "", timeStamp);
+                        histories.clear();
+                        histories = dataBaseHelper.getHistory();
+                        historyAdapter.updateReceiptsList(histories);
+
+                    }
+
+
+                    Log.v("data%%%%  ",""+dataBaseHelper.getHistory().get(0).getExpression());
                     e2.setText(result+"");
                 }
                 catch (Exception e)
@@ -274,5 +373,38 @@ public class MainActivity extends AppCompatActivity {
                 e1.setText(newText);
             }
         }
+    }
+
+    public void slideUpDown(final View view) {
+        if (!isPanelShown()) {
+            // Show the panel
+            Animation bottomUp = AnimationUtils.loadAnimation(this,
+                    R.anim.bottom_up);
+
+            hiddenPanel.startAnimation(bottomUp);
+            hiddenPanel.setVisibility(View.VISIBLE);
+
+        }
+        else {
+            // Hide the Panel
+            Animation bottomDown = AnimationUtils.loadAnimation(this,
+                    R.anim.bottom_down);
+
+            hiddenPanel.startAnimation(bottomDown);
+            hiddenPanel.setVisibility(View.GONE);
+        }
+    }
+
+    private boolean isPanelShown() {
+        return hiddenPanel.getVisibility() == View.VISIBLE;
+    }
+
+    public void onBackPressed() {
+        Intent a = new Intent(Intent.ACTION_MAIN);
+        a.addCategory(Intent.CATEGORY_HOME);
+        a.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(a);
+        finish();
+        System.exit(0);
     }
 }
